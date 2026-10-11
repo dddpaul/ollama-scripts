@@ -1,10 +1,10 @@
 ---
 id: TASK-7
 title: Fix the 128k memory budget arithmetic in README.md
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-11 19:06'
-updated_date: '2026-10-11 20:01'
+updated_date: '2026-10-11 20:02'
 labels: []
 dependencies: []
 priority: low
@@ -66,3 +66,9 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 - [ ] #3 README.md describes the 1936 MiB free-memory target as a margin the fit step tries to keep, not memory the model allocates
 - [ ] #4 The CLAUDE.md Lint and Test commands exit 0 in the devcontainer
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: handoff checklist green (README.md exists, ACs grep/command-checkable, no deps). Rewrite the paragraph after the memory table: 21867 MiB projected by the fit step + 1136 MiB vision encoder as loaded (887.99 weights + 248.10 compute, TASK-5 log) = 23003 MiB (about 22.5 GiB) vs 21037 MiB (about 20.5 GiB) free, deficit about 1.9 GiB; 1936 MiB free-memory target described as a margin the fit step tries to keep (21867 + 1936 - 21037 = 2767 MiB 'need to reduce'). AC #1 is file-wide, so the Placement report sentence quoting 'about 21.9 GiB' becomes 'about 22.5 GiB' too.
+<!-- SECTION:NOTES:END -->

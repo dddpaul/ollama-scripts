@@ -89,8 +89,13 @@ on an RTX 3090 Ti (23027 MiB total) and generation drops from about 65 to
 | Vision encoder (mmproj), worst case | 1161 | `estimated worst-case memory usage of mmproj is 1161.02 MiB` |
 | Free on the GPU before load | 21037 | `gpu memory … free="21.3 GiB"`, fit line |
 
-So the 128k load needs about 21.9 GiB plus Ollama's 1.9 GiB free-memory target
-against 21 GiB free. The KV cache is the largest item after the weights, so a
+The fit step projects 21867 MiB without the vision encoder; with the encoder as
+loaded (888 MiB weights plus 248 MiB compute, 1136 MiB) the 128k load needs
+23003 MiB (about 22.5 GiB) against 21037 MiB (about 20.5 GiB) free, a deficit of
+about 1.9 GiB. The fit step also tries to keep a free-memory target of 1936 MiB
+on the GPU; that is a margin it tries to leave unused, not memory the model
+allocates, and it is why the log asks to reduce device memory by 2767 MiB
+(21867 + 1936 - 21037). The KV cache is the largest item after the weights, so a
 smaller `-ContextK` is the main way to fit everything on the GPU.
 
 ### Long prompts
@@ -127,7 +132,7 @@ GPU placement: 78% of the model in VRAM (14.1 GiB of 18.0 GiB).
 
 When the share is below 100%, it adds a warning that the rest runs on the CPU
 and names `-NumGpu 99` and a smaller `-ContextK` as the fixes. `/api/ps`
-reports less than the real footprint (18 GiB at 128k against about 21.9 GiB in
+reports less than the real footprint (18 GiB at 128k against about 22.5 GiB in
 the server log), so read the percentage as the GPU share, not as a sizing figure.
 
 It uses one parallel request (`OLLAMA_NUM_PARALLEL=1`), one loaded model

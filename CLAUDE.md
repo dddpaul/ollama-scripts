@@ -102,14 +102,14 @@ This gate applies even if autonomous mode is otherwise active — a Source-carry
 
 - **Language:** Python (managed with uv), Bash, PowerShell
 - **Build:** `N/A (scripts — no build step)`
-- **Lint:** `uv run ruff check . && uv run mypy . && git ls-files -co --exclude-standard -z '*.sh' | xargs -0 -r shellcheck && pwsh -NoProfile -Command '$r = git ls-files -co --exclude-standard "*.ps1" "*.psm1" | ForEach-Object { Invoke-ScriptAnalyzer -Path $_ }; $r; exit [int]($r.Count -gt 0)'`
-- **Test:** `uv run pytest`
+- **Lint:** `uv run ruff check . && git ls-files -co --exclude-standard -z -- '*.py' | xargs -0 -r uv run mypy && git ls-files -co --exclude-standard -z -- '*.sh' ':(exclude).claude/**' ':(exclude).devcontainer/**' ':(exclude)ralph.sh' ':(exclude)refine.sh' | xargs -0 -r shellcheck && pwsh -NoProfile -Command '$r = git ls-files -co --exclude-standard "*.ps1" "*.psm1" | ForEach-Object { Invoke-ScriptAnalyzer -Path $_ -Settings ./PSScriptAnalyzerSettings.psd1 }; $r; exit [int]($r.Count -gt 0)'`
+- **Test:** `uv run pytest; rc=$?; [ "$rc" -eq 0 ] || [ "$rc" -eq 5 ]`
 - **Framework:** None
 
 ### Conventions
 <!-- Add project conventions here -->
 
-- Shell and PowerShell lint runs on git-listed files (tracked + untracked, `.gitignore` respected) so `.venv/` — including its `Activate.ps1` — is never linted.
+- Shell and PowerShell lint runs on git-listed files (tracked + untracked, `.gitignore` respected) so `.venv/` — including its `Activate.ps1` — is never linted. Ralph-managed scripts (`.claude/**`, `.devcontainer/**`, `ralph.sh`, `refine.sh`) are excluded from shellcheck because Ralph upgrades overwrite them; PSScriptAnalyzer reads the repo-root `PSScriptAnalyzerSettings.psd1` (excludes only `PSAvoidUsingWriteHost`, intended in interactive launchers).
 
 Use uv exclusively for Python package management in this project.
 

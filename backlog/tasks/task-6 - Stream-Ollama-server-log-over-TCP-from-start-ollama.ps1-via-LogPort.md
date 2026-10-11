@@ -1,10 +1,10 @@
 ---
 id: TASK-6
 title: Stream Ollama server log over TCP from start-ollama.ps1 via -LogPort
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-10-11 16:11'
-updated_date: '2026-10-11 16:23'
+updated_date: '2026-10-11 16:24'
 labels:
   - 'feature:ollama-log-streaming'
 dependencies: []
@@ -79,4 +79,6 @@ Plan: add -LogPort param (range + 11435 ValidateScript); add Split-LogText, Get-
 Commit: `6f36281` - task-6: Stream the Ollama server log over TCP via -LogPort
 
 Commit: `0a08a3a` - task-6: Pump the server log before sending the ERROR line
+
+Implemented -LogPort (ValidateRange 0-65535, 11435 rejected), helpers Split-LogText/Get-LogStreamHeader/New-LogPumpState/Invoke-LogPump/Write-Status plus private Send-LogLine/Disconnect-LogSubscriber/Receive-LogSubscriberInput/Close-LogPump. ollama serve output redirected to %TEMP%\ollama-serve.{out,err}.log; pump every 200 ms in readiness and serve loops; outer catch pumps, then sends ERROR:, then rethrows; finally runs Close-LogPump (final pump, Shutdown(Send)+Close, listener stop), Stop-Process, stream dispose. Tests in tests/test_log_stream.py (12, real loopback sockets). Gotcha: a TcpClient's LocalEndPoint is dual-stack ([::ffff:127.0.0.1]:p), so the test takes the address from the server-side subscriber. Not pumped during pull/create/model load (lines queue). Windows LAN verification remains an owner follow-up. task-reviewer: APPROVED.
 <!-- SECTION:NOTES:END -->

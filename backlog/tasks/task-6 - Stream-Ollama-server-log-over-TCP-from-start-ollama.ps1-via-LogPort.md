@@ -4,7 +4,7 @@ title: Stream Ollama server log over TCP from start-ollama.ps1 via -LogPort
 status: In Progress
 assignee: []
 created_date: '2026-10-11 16:11'
-updated_date: '2026-10-11 16:20'
+updated_date: '2026-10-11 16:23'
 labels:
   - 'feature:ollama-log-streaming'
 dependencies: []
@@ -68,7 +68,7 @@ HTTP/1.0 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nCache-Control: no-
 - [x] #5 A pytest test shows `Invoke-LogPump` with a state that has no listener (`-LogPort 0`) echoes lines and opens no port.
 - [x] #6 The script starts `ollama serve` with stdout and stderr redirected to the two `%TEMP%` files, calls `Invoke-LogPump` in the readiness loop and the serve loop at about 200 ms, sends status lines through `Write-Status`, sends `ERROR: <message>` on a fatal error, and runs the shutdown sequence in its finally block.
 - [x] #7 README.md documents `-LogPort` (default 0 = off), a firewall rule for the log port mirroring the 11435 rule (Private profile, LocalSubnet), client examples (`curl -sN`, `curl -sN --max-time 120`, `nc`, background capture to a file), what the log contains (model names, request lines, Windows paths with the username; no prompt text at the default log level), the security note, and the two `%TEMP%` log files.
-- [ ] #8 The CLAUDE.md Lint and Test commands exit 0 in the devcontainer, and the Test run executes the new tests instead of skipping them.
+- [x] #8 The CLAUDE.md Lint and Test commands exit 0 in the devcontainer, and the Test run executes the new tests instead of skipping them.
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -77,4 +77,6 @@ HTTP/1.0 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nCache-Control: no-
 Plan: add -LogPort param (range + 11435 ValidateScript); add Split-LogText, Get-LogStreamHeader, New-LogPumpState, Invoke-LogPump, Write-Status after the param block; redirect ollama serve stdout/stderr to %TEMP% files; optional TcpListener with port-in-use and bind-failure errors; pump every 200 ms in readiness/serve loops; outer catch sends ERROR:, finally does final pump + subscriber Shutdown(Send)/Close + listener stop + Ollama stop + stream dispose; pytest tests in tests/test_log_stream.py using the AST loader; README Windows section.
 
 Commit: `6f36281` - task-6: Stream the Ollama server log over TCP via -LogPort
+
+Commit: `0a08a3a` - task-6: Pump the server log before sending the ERROR line
 <!-- SECTION:NOTES:END -->

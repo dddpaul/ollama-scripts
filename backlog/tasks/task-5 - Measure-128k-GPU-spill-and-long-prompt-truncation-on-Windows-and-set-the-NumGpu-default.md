@@ -3,10 +3,10 @@ id: TASK-5
 title: >-
   Measure 128k GPU spill and long-prompt truncation on Windows and set the
   NumGpu default
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-10-11 14:09'
-updated_date: '2026-10-11 18:17'
+updated_date: '2026-10-11 18:20'
 labels: []
 dependencies:
   - TASK-4
@@ -114,4 +114,10 @@ Long-prompt check with the server log captured over the LAN through the TASK-6 l
 Plan: AC #3 — recorded spill 2.3 GB > 0.5 GiB, so the default stays -1 (already the script value); pin it with a test. AC #4/#5 — README: default and measured reason after the -NumGpu paragraph; new 'Long prompts' subsection with the truncation limit (Ollama runner, not fixable in the script) and the 7000-line check.
 
 Commit: `07e7d70` - task-5: Keep NumGpu default -1 and document the 128k spill and prompt limit
+
+Commit: `d09bed0` - task-5: Separate forced and automatic 55-layer speeds and attribute the truncation log line
+
+Commit: `57ba88f` - task-5: Rewrap the NumGpu default paragraph
+
+Done: NumGpu default stays -1 (spill 2.3 GB > 0.5 GiB), pinned by test_num_gpu_default_is_minus_one (mutation-checked). README: the default's measured reason, -NumGpu 99 trade-off (47-52 vs ~15 tok/s forced 55 layers), per-request num_gpu -1 gotcha, and a 'Long prompts' subsection stating the Ollama runner truncation limit with the 7000-line check. No script change needed: the truncation is in Ollama's llama_server.go wrapper. task-reviewer: APPROVED (score 9) after one round of fixes.
 <!-- SECTION:NOTES:END -->

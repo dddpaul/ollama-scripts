@@ -90,3 +90,13 @@ def test_placement_report_partial_gpu_warns() -> None:
     assert "78%" in lines[1]
     assert "-NumGpu" in lines[1]
     assert "-ContextK" in lines[1]
+
+
+def test_num_gpu_default_is_minus_one() -> None:
+    """The -NumGpu default stays -1: forcing 99 at 128k spilled 2.3 GB into shared GPU memory (TASK-5)."""
+    out = run_pwsh(
+        f"$p = [System.Management.Automation.Language.Parser]::ParseFile('{SCRIPT}', [ref]$null, [ref]$null)"
+        ".ParamBlock.Parameters | Where-Object { $_.Name.VariablePath.UserPath -eq 'NumGpu' }; "
+        "$p.DefaultValue.Extent.Text"
+    )
+    assert out.strip() == "-1"

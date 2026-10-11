@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-10-11 14:09'
-updated_date: '2026-10-11 14:50'
+updated_date: '2026-10-11 18:12'
 labels: []
 dependencies:
   - TASK-4
@@ -69,7 +69,7 @@ Out of scope:
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 On Windows (owner run): with -ContextK 128 -NumGpu 99, Task Manager Shared GPU memory before and after the load, the placement line the script prints, and generation tokens/s are recorded in the implementation notes
-- [ ] #2 On Windows (owner run): the long-prompt check is run against a server started with -ContextK 128, and its prompt_eval_count plus any server log line containing truncat are recorded in the implementation notes
+- [x] #2 On Windows (owner run): the long-prompt check is run against a server started with -ContextK 128, and its prompt_eval_count plus any server log line containing truncat are recorded in the implementation notes
 - [ ] #3 The NumGpu default in windows/start-ollama.ps1 is 99 if the recorded Shared GPU memory rose by at most 0.5 GiB, otherwise it stays -1
 - [ ] #4 README.md states the NumGpu default and the measured reason for it
 - [ ] #5 If the recorded prompt_eval_count is below 120000, the cause is recorded in the implementation notes and either fixed in windows/start-ollama.ps1 or stated as a limit in README.md
@@ -104,4 +104,10 @@ Long-prompt check (AC #2), same server and model:
 - For README.md (AC #5): state that a prompt must fit in the context with room for the answer, otherwise about half of it is dropped; use 7000 lines, not 8000, as the long-prompt check.
 
 For README.md (AC #4): the NumGpu default stays -1 per the decision rule (spill 2.3 GB), with -NumGpu 99 recommended for -ContextK 128 on a 24 GB card when the spill is acceptable: 47-52 tok/s against about 15 tok/s at the automatic 55-layer split.
+
+Long-prompt check with the server log captured over the LAN through the TASK-6 log stream (server started with -ContextK 128 -NumGpu 99 -LogPort 11436):
+- 8000 lines: prompt_eval_count = 65538, response "7999". Server log line containing "truncat": level=WARN source=llama_server.go:320 msg="truncating input prompt" limit=65538 prompt=134914 keep=4 new=65538. llama-server then reported "stop processing: n_tokens = 65543, truncated = 0".
+- 7000 lines: prompt_eval_count = 117914, response "7000", no "truncating input prompt" line, llama-server "stop processing: n_tokens = 117919, truncated = 0". Prompt eval took 146.4 s this time (116.5 s in the earlier run; not investigated).
+- Correction to the earlier cause note: the cut is made by Ollama's own runner wrapper (llama_server.go "truncating input prompt"), not by llama-server's context shift. The 8000-line prompt is 134914 tokens (exactly the 15914 + 7000 * 17 prediction), above the 131072-token context, and Ollama cuts an overflowing prompt to limit 65538, keeping the first 4 tokens and the tail. A prompt that fits is processed in full.
+- For README.md (AC #5): state the limit (a prompt must fit in the -ContextK context with room for the answer; an overflowing prompt is cut to about half the context, keeping its end, and the server log shows "truncating input prompt"), and use 7000 lines as the long-prompt check.
 <!-- SECTION:NOTES:END -->

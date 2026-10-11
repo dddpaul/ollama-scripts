@@ -4,7 +4,7 @@ title: Stream Ollama server log over TCP from start-ollama.ps1 via -LogPort
 status: Done
 assignee: []
 created_date: '2026-10-11 16:11'
-updated_date: '2026-10-11 16:24'
+updated_date: '2026-10-11 18:12'
 labels:
   - 'feature:ollama-log-streaming'
 dependencies: []
@@ -81,4 +81,9 @@ Commit: `6f36281` - task-6: Stream the Ollama server log over TCP via -LogPort
 Commit: `0a08a3a` - task-6: Pump the server log before sending the ERROR line
 
 Implemented -LogPort (ValidateRange 0-65535, 11435 rejected), helpers Split-LogText/Get-LogStreamHeader/New-LogPumpState/Invoke-LogPump/Write-Status plus private Send-LogLine/Disconnect-LogSubscriber/Receive-LogSubscriberInput/Close-LogPump. ollama serve output redirected to %TEMP%\ollama-serve.{out,err}.log; pump every 200 ms in readiness and serve loops; outer catch pumps, then sends ERROR:, then rethrows; finally runs Close-LogPump (final pump, Shutdown(Send)+Close, listener stop), Stop-Process, stream dispose. Tests in tests/test_log_stream.py (12, real loopback sockets). Gotcha: a TcpClient's LocalEndPoint is dual-stack ([::ffff:127.0.0.1]:p), so the test takes the address from the server-side subscriber. Not pumped during pull/create/model load (lines queue). Windows LAN verification remains an owner follow-up. task-reviewer: APPROVED.
+
+Windows verification (owner follow-up, 2026-10-11): the owner started the merged script under Windows PowerShell with -ContextK 128 -NumGpu 99 -LogPort 11436 and a firewall rule; a client on the Mac subscribed over the LAN with curl -sN.
+- The response header arrived exactly as designed (HTTP/1.0 200 OK, text/plain; charset=utf-8, no-cache, nosniff, Connection: close), followed by "log subscriber connected: <address>".
+- Live lines arrived during requests to 11435: llama-server slot and timing lines, the GIN request line, and Ollama's WARN "truncating input prompt" line for an over-long prompt (used to close TASK-5 AC #2).
+- A background capture (curl -sN > file) followed three requests over about 4 minutes without drops.
 <!-- SECTION:NOTES:END -->

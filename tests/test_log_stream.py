@@ -117,7 +117,10 @@ def test_valid_log_port_reaches_ollama_lookup(args: list[str]) -> None:
 
 def test_split_log_text_keeps_unfinished_line_pending() -> None:
     """Complete lines are returned and the text after the last newline waits as Pending."""
-    assert split_log_text("", "first\nsecond") == {"Lines": ["first"], "Pending": "second"}
+    assert split_log_text("", "first\nsecond") == {
+        "Lines": ["first"],
+        "Pending": "second",
+    }
 
 
 def test_split_log_text_joins_pending_with_next_chunk() -> None:
@@ -138,7 +141,9 @@ def test_split_log_text_empty_input_has_no_lines() -> None:
 
 def test_log_stream_header_is_exact() -> None:
     """The header is a minimal HTTP/1.0 text/plain response ending in a blank line."""
-    out = run_pwsh("[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((Get-LogStreamHeader)))")
+    out = run_pwsh(
+        "[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((Get-LogStreamHeader)))"
+    )
     header = base64.b64decode(out.strip()).decode()
     assert header == HEADER
     assert header.endswith("\r\n\r\n")
@@ -150,7 +155,9 @@ def test_pump_streams_both_files_to_a_subscriber(tmp_path: Path) -> None:
     err_log = tmp_path / "err.log"
     out_log.write_bytes(b"")
     err_log.write_bytes(b"")
-    command = READ_BYTES + f"""
+    command = (
+        READ_BYTES
+        + f"""
 $out = '{out_log}'
 $err = '{err_log}'
 $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
@@ -187,10 +194,13 @@ foreach ($reader in $state.Readers) {{ $reader.Stream.Dispose() }}
     First = $first; Second = $second; Console = @($console)
 }} | ConvertTo-Json -Compress
 """
+    )
     result = json.loads(run_pwsh(command))
     assert result["AfterAccept"] == 1
     assert result["Address"].startswith("127.0.0.1:")
-    assert result["First"] == HEADER + f"log subscriber connected: {result['Address']}\n"
+    assert (
+        result["First"] == HEADER + f"log subscriber connected: {result['Address']}\n"
+    )
     assert result["Second"] == "out one\nout two\nerr one\nerr partial\n"
     assert result["Extra"] == 0
     assert result["AfterClose"] == 0

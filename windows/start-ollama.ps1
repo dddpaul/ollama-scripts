@@ -314,7 +314,12 @@ try {
     }
     if ($server.ExitCode -ne 0) { throw "Ollama exited with code $($server.ExitCode)." }
 } catch {
-    if ($state) { Write-Status -State $state -Level Error -Message $_.Exception.Message }
+    if ($state) {
+        # Pump first so the server's last lines, often the cause, precede the error.
+        $failure = $_
+        try { Invoke-LogPump -State $state } catch { Write-Verbose "Log pump failed: $($_.Exception.Message)" }
+        Write-Status -State $state -Level Error -Message $failure.Exception.Message
+    }
     throw
 } finally {
     if ($state) {

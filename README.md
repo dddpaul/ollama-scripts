@@ -127,6 +127,72 @@ nvidia-smi
 For OpenAI-compatible clients such as OpenCode, use
 `http://<windows-ip>:11435/v1` and model ID `qwen3.8:27b-64k`.
 
+### Server log stream
+
+The script always redirects `ollama serve` output to two files and echoes
+their lines to the console: stdout goes to `%TEMP%\ollama-serve.out.log` and
+stderr to `%TEMP%\ollama-serve.err.log`. Both are overwritten at each start
+and left in place after the server stops, so they keep the last run's log.
+
+`-LogPort <N>` also streams those lines over TCP to any client on the LAN. It
+takes 0 to 65535 and defaults to 0, which is off and opens no port; 11435 is
+rejected because Ollama uses it. For example:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-ollama.ps1 -LogPort 11436
+```
+
+Before Ollama starts, the script stops with an error if the log port is already
+in use or cannot be bound. Hyper-V and WSL reserve port ranges on Windows; list
+them with `netsh int ipv4 show excludedportrange protocol=tcp` and pick another
+`-LogPort` outside them.
+
+Allow the log port through Windows Firewall the same way as port 11435 (once,
+in an administrator PowerShell window, Private profile, local subnet only):
+
+```powershell
+New-NetFirewallRule -DisplayName 'Ollama log TCP 11436 LAN' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 11436 -Profile Private -RemoteAddress LocalSubnet
+```
+
+Each connection gets a minimal HTTP/1.0 `200 text/plain` header straight away,
+then live lines only (no replay of earlier lines), one UTF-8 line per `\n`,
+until the client disconnects or the script stops. Subscribe before triggering
+the request you want to watch. From another machine:
+
+```sh
+# Follow the log until Ctrl+C or the server stops.
+curl -sN http://<windows-ip>:11436/
+
+# Capture a fixed two-minute window.
+curl -sN --max-time 120 http://<windows-ip>:11436/
+
+# Raw TCP; the HTTP header comes first.
+nc <windows-ip> 11436
+
+# Capture to a file in the background, e.g. for an agent to read later.
+curl -sN http://<windows-ip>:11436/ > ollama.log 2>&1 &
+```
+
+The stream carries everything `ollama serve` writes to stdout and stderr, plus
+the script's own status lines (the placement report, the serving banner,
+`log subscriber connected: <address>` and `log subscriber disconnected:
+<address>`). Warnings arrive as `WARNING: <text>`, and when the script stops on
+an error it sends `ERROR: <message>` before closing the stream. Server lines
+include model names, request lines (method, path, status, client address,
+duration) and Windows paths that contain the username; at Ollama's default log
+level they carry no prompt text.
+
+Security: like Ollama's own port 11435, the stream has no authentication and
+no TLS; anyone who can reach the port can read the log. Keep it off unless you
+need it and limit the firewall rule to the Private profile and the local
+subnet.
+
+The script pumps the files about every 200 ms while it waits for the server and
+while it serves. During `ollama pull`, `ollama create` and the initial model
+load it does not pump; their server lines queue in the files and are sent right
+after. A subscriber whose send takes longer than 500 ms is dropped so that it
+cannot stall the console or other subscribers.
+
 References:
 - https://docs.ollama.com/windows
 - https://docs.ollama.com/modelfile

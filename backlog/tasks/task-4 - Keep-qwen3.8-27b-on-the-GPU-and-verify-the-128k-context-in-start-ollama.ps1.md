@@ -1,10 +1,10 @@
 ---
 id: TASK-4
 title: Add -NumGpu and a GPU placement report to start-ollama.ps1
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-10-11 13:56'
-updated_date: '2026-10-11 14:19'
+updated_date: '2026-10-11 14:21'
 labels: []
 dependencies: []
 priority: medium
@@ -128,4 +128,8 @@ Handoff checklist green: windows/start-ollama.ps1 and README.md exist, no deps, 
 Plan: add -NumGpu param + Get-ModelfileText/Get-PlacementReport after param block; body uses them, warm-loads via /api/generate (-TimeoutSec 600), reads /api/ps, prints report; load failure throws suggesting -NumGpu -1 / smaller -ContextK. tests/test_start_ollama.py loads function ASTs via pwsh. README Windows section updated.
 
 Commit: `775c5aa` - task-4: Add -NumGpu and a GPU placement report to start-ollama.ps1
+
+Commit: `96c10f9` - task-4: Ignore Python bytecode caches
+
+Implemented: -NumGpu [ValidateRange(-1,999)] default -1; Get-ModelfileText and Get-PlacementReport (floor percent so a partial spill never prints 100%; InvariantCulture F1 GiB); warm load POST /api/generate -TimeoutSec 600, /api/ps lookup by name, Write-Host + Write-Warning; load failure throws suggesting -NumGpu -1 or smaller -ContextK. tests/test_start_ollama.py dot-sources function ASTs via pwsh (skipped without pwsh). README: -NumGpu, 128k memory table, placement report. Added __pycache__/ to .gitignore. task-reviewer APPROVED (score 8); minor non-blocking: failure/warning hints are fixed text even when -NumGpu already -1/99 (AC6 mandates the wording) — revisit in TASK-5 if default changes.
 <!-- SECTION:NOTES:END -->

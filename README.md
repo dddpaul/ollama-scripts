@@ -56,6 +56,22 @@ driver may then spill the excess into shared system memory ("Shared GPU memory"
 in Task Manager), and a load that does not fit at all fails; the script then
 stops with an error suggesting `-NumGpu -1` or a smaller `-ContextK`.
 
+The default stays -1 because of a measured spill. On the RTX 3090 Ti with
+Ollama 0.40.2, `-ContextK 128 -NumGpu 99` loaded all 66 layers, but Task
+Manager "Shared GPU memory" rose from 0.1 GB to 2.4 GB during the load. The
+server log showed about 1.9 GiB of device demand over the free VRAM. The spill
+is still faster than the automatic split: forcing all layers generated 47-52
+tokens/s, while 55 layers on the GPU (the split Ollama picks at 128k) generated
+about 15 tokens/s. So at `-ContextK 128` on a 24 GB card, use `-NumGpu 99` if
+the spill into system memory is acceptable. Other ways to free VRAM, not
+handled by the script, are a text-only model without the vision encoder
+(about 1.1 GiB) and turning off the MTP draft (about 0.7 GiB, at the cost of
+generation speed).
+
+A per-request `options.num_gpu = -1` does not override `num_gpu 99` from the
+Modelfile (the model is not reloaded); a concrete layer count in the request
+does reload it.
+
 ### GPU memory at 128k
 
 At `-ContextK 128` with automatic placement, Ollama keeps only 55 of 66 layers
@@ -75,6 +91,28 @@ on an RTX 3090 Ti (23027 MiB total) and generation drops from about 65 to
 So the 128k load needs about 21.9 GiB plus Ollama's 1.9 GiB free-memory target
 against 21 GiB free. The KV cache is the largest item after the weights, so a
 smaller `-ContextK` is the main way to fit everything on the GPU.
+
+### Long prompts
+
+The 128k context works end to end: a 117914-token prompt to
+`qwen3.8:27b-128k` (`-ContextK 128`) returned `prompt_eval_count` 117914 and a
+correct answer. A prompt must fit in the context with room for the answer.
+When it does not, Ollama cuts it to about half the context, keeping the first
+4 tokens and the end of the prompt, and the server log shows
+`msg="truncating input prompt" limit=65538 prompt=134914 keep=4 new=65538`.
+That is a limit of Ollama's runner, not of the script. Check the full context with 7000
+lines (each line with a 4-digit number costs 17 tokens; 8000 lines are 134914
+tokens and get cut):
+
+```powershell
+$api = 'http://127.0.0.1:11435'
+$text = (0..6999 | ForEach-Object { "Line ${_}: the quick brown fox jumps over the lazy dog. " }) -join ''
+$body = @{ model = 'qwen3.8:27b-128k'; prompt = "$text`nHow many lines were there? Answer with one number."; stream = $false; think = $false; options = @{ num_predict = 8 } } | ConvertTo-Json -Depth 3
+$r = Invoke-RestMethod -Uri "$api/api/generate" -Method Post -Body $body -ContentType 'application/json' -TimeoutSec 900
+"prompt_eval_count = $($r.prompt_eval_count)"
+```
+
+Expect `prompt_eval_count = 117914` and the answer 7000.
 
 ### Placement report
 

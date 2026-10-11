@@ -7,7 +7,7 @@ Today the only platform directory is `windows/`.
 
 | Script | Platform | Purpose |
 | --- | --- | --- |
-| [`windows/start-ollama.ps1`](windows/start-ollama.ps1) | Windows | Starts a LAN-reachable Ollama server on port 11435 and serves `qwen3.8:27b` with a 64k or 128k context. |
+| [`windows/start-ollama.ps1`](windows/start-ollama.ps1) | Windows | Starts a LAN-reachable Ollama server on port 11435 and serves `qwen3.8:27b` with a context configurable from 4k to 256k (default 64k). |
 
 ## Windows: Qwen 3.8 launcher
 
@@ -24,14 +24,25 @@ The script starts Ollama on all IPv4 interfaces at port 11435, downloads
 context. It generates a temporary Modelfile and deletes it after model creation.
 Leave the terminal open; Ctrl+C stops this server.
 
-For 128k context, run:
+`-ContextK <N>` sets the context size in K, where 1K = 1024 tokens. It takes
+any integer from 4 to 256 and defaults to 64 when omitted. The script then
+creates `qwen3.8:27b-<N>k` with an `N * 1024`-token context; use that model ID
+in your client. For example, for 128k context run:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-ollama.ps1 -ContextK 128
 ```
 
-This creates `qwen3.8:27b-128k` with a 131072-token context. Use that model ID
-in your client. The default remains 64k when `-ContextK` is omitted.
+This creates `qwen3.8:27b-128k` with a 131072-token context. For the model's
+full 256k context window, run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-ollama.ps1 -ContextK 256
+```
+
+This creates `qwen3.8:27b-256k` with a 262144-token context. Larger contexts
+need more VRAM for the KV cache, so Ollama may then place some layers on the
+CPU; `ollama ps` shows the actual CPU/GPU split.
 
 It uses one parallel request (`OLLAMA_NUM_PARALLEL=1`), one loaded model
 (`OLLAMA_MAX_LOADED_MODELS=1`), Flash Attention, and a q8_0 KV cache to reduce
@@ -46,8 +57,8 @@ Behaviour to be aware of:
   if it does not (or if the server process exits first).
 - It re-runs `ollama create` for the context-specific model on every launch;
   the base model `qwen3.8:27b` is pulled only when it is missing.
-- `OLLAMA_CONTEXT_LENGTH` is set server-wide to the same context (65536 or
-  131072 tokens), so other models served by this instance default to it too.
+- `OLLAMA_CONTEXT_LENGTH` is set server-wide to the same context (`N * 1024`
+  tokens), so other models served by this instance default to it too.
 - The server binds `0.0.0.0:11435`, while the script's own CLI calls go to
   `127.0.0.1:11435`.
 

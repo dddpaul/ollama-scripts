@@ -1,6 +1,6 @@
 # Requires Ollama for Windows. Quit the Ollama tray app before starting.
 param(
-    [ValidateSet(64, 128)]
+    [ValidateRange(4, 256)]
     [int]$ContextK = 64
 )
 

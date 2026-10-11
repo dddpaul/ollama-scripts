@@ -16,3 +16,6 @@ backlog/.ralph-heartbeat
 
 # Python virtualenv (also the devcontainer .venv volume mountpoint)
 .venv/
+
+# Python bytecode
+__pycache__/

@@ -112,4 +112,6 @@ Long-prompt check with the server log captured over the LAN through the TASK-6 l
 - For README.md (AC #5): state the limit (a prompt must fit in the -ContextK context with room for the answer; an overflowing prompt is cut to about half the context, keeping its end, and the server log shows "truncating input prompt"), and use 7000 lines as the long-prompt check.
 
 Plan: AC #3 — recorded spill 2.3 GB > 0.5 GiB, so the default stays -1 (already the script value); pin it with a test. AC #4/#5 — README: default and measured reason after the -NumGpu paragraph; new 'Long prompts' subsection with the truncation limit (Ollama runner, not fixable in the script) and the 7000-line check.
+
+Commit: `07e7d70` - task-5: Keep NumGpu default -1 and document the 128k spill and prompt limit
 <!-- SECTION:NOTES:END -->

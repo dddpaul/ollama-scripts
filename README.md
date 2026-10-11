@@ -60,9 +60,10 @@ The default stays -1 because of a measured spill. On the RTX 3090 Ti with
 Ollama 0.40.2, `-ContextK 128 -NumGpu 99` loaded all 66 layers, but Task
 Manager "Shared GPU memory" rose from 0.1 GB to 2.4 GB during the load. The
 server log showed about 1.9 GiB of device demand over the free VRAM. The spill
-is still faster than the automatic split: forcing all layers generated 47-52
-tokens/s, while 55 layers on the GPU (the split Ollama picks at 128k) generated
-about 15 tokens/s. So at `-ContextK 128` on a 24 GB card, use `-NumGpu 99` if
+costs less than leaving layers on the CPU: forcing all layers generated 47-52
+tokens/s, while a request forcing `num_gpu 55` in the same session generated
+about 15 tokens/s (about 24 with Ollama's own automatic placement, see below;
+the conditions differed). So at `-ContextK 128` on a 24 GB card, use `-NumGpu 99` if
 the spill into system memory is acceptable. Other ways to free VRAM, not
 handled by the script, are a text-only model without the vision encoder
 (about 1.1 GiB) and turning off the MTP draft (about 0.7 GiB, at the cost of
@@ -98,11 +99,12 @@ The 128k context works end to end: a 117914-token prompt to
 `qwen3.8:27b-128k` (`-ContextK 128`) returned `prompt_eval_count` 117914 and a
 correct answer. A prompt must fit in the context with room for the answer.
 When it does not, Ollama cuts it to about half the context, keeping the first
-4 tokens and the end of the prompt, and the server log shows
-`msg="truncating input prompt" limit=65538 prompt=134914 keep=4 new=65538`.
-That is a limit of Ollama's runner, not of the script. Check the full context with 7000
-lines (each line with a 4-digit number costs 17 tokens; 8000 lines are 134914
-tokens and get cut):
+4 tokens and the end of the prompt. For a 134914-token prompt (8000 lines)
+the server log showed
+`msg="truncating input prompt" limit=65538 prompt=134914 keep=4 new=65538`
+and `prompt_eval_count` was 65538. That is a limit of Ollama's runner, not of
+the script. Check the full context with 7000 lines (each line with a 4-digit
+number costs 17 tokens):
 
 ```powershell
 $api = 'http://127.0.0.1:11435'

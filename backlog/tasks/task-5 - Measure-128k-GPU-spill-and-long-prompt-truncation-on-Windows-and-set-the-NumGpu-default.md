@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-10-11 14:09'
+updated_date: '2026-10-11 14:50'
 labels: []
 dependencies:
   - TASK-4
@@ -67,10 +68,40 @@ Out of scope:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 On Windows (owner run): with -ContextK 128 -NumGpu 99, Task Manager Shared GPU memory before and after the load, the placement line the script prints, and generation tokens/s are recorded in the implementation notes
+- [x] #1 On Windows (owner run): with -ContextK 128 -NumGpu 99, Task Manager Shared GPU memory before and after the load, the placement line the script prints, and generation tokens/s are recorded in the implementation notes
 - [ ] #2 On Windows (owner run): the long-prompt check is run against a server started with -ContextK 128, and its prompt_eval_count plus any server log line containing truncat are recorded in the implementation notes
 - [ ] #3 The NumGpu default in windows/start-ollama.ps1 is 99 if the recorded Shared GPU memory rose by at most 0.5 GiB, otherwise it stays -1
 - [ ] #4 README.md states the NumGpu default and the measured reason for it
 - [ ] #5 If the recorded prompt_eval_count is below 120000, the cause is recorded in the implementation notes and either fixed in windows/start-ollama.ps1 or stated as a limit in README.md
 - [ ] #6 The CLAUDE.md Lint and Test commands exit 0 in the devcontainer
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Owner run 1 (2026-10-11 17:32 MSK; Ollama 0.40.2; RTX 3090 Ti, 23027 MiB; server config OLLAMA_CONTEXT_LENGTH=131072): windows/start-ollama.ps1 from master 2ff4e61 with -ContextK 128 -NumGpu 99.
+- llama-server started with -c 131072 and -ngl 99. Fit step: "projected to use 21867 MiB of device memory vs. 21037 MiB of free device memory", "need to reduce device memory by 2767 MiB", then "failed to fit params to free device memory: n_gpu_layers already set by user to 99, abort", so the load went ahead without fitting.
+- load_tensors: offloaded 66/66 layers to GPU (automatic placement: 55/66). On CUDA0: model weights 15339.44 MiB, KV cache 4352 MiB (automatic placement split it 3808 GPU + 544 CPU), recurrent state 748.13 MiB, compute buffer 720.28 MiB, MTP draft KV 512 + compute 196.02 MiB, vision encoder weights 887.99 + compute 248.10 MiB.
+- Device demand is about 23003 MiB (21867 projected + 1136 vision encoder) against 21037 MiB free before the load, about 1.9 GiB over. The load did not fail, so the excess went somewhere, most likely shared GPU memory; the Task Manager reading has to confirm it.
+- Warm load POST /api/generate took 5.66 s. The script printed "GPU placement: 100% of the model in VRAM (16.6 GiB of 16.6 GiB)." and no warning. /api/ps reports 16.6 GiB against about 22.5 GiB of real device demand, so 100% there does not rule out a spill.
+- Still missing for AC #1: Task Manager "Shared GPU memory" before and after the load, and generation tokens/s. AC #2 (long-prompt check) not run yet.
+
+Owner run 1, Task Manager: Shared GPU memory before the load = 0.1 GB. After-load value pending.
+
+Owner run 1, Task Manager: Shared GPU memory after the load = 2.4 GB, up 2.3 GB from 0.1 GB. That is above the 0.5 GiB threshold and close to the about 1.9 GiB the server log shows over free VRAM, so -NumGpu 99 at 128k spills into shared system memory. Decision per AC #3: the NumGpu default stays -1. Generation tokens/s for the forced load still pending (needed for AC #1 and for the README guidance on when -NumGpu 99 is worth it).
+
+Measurements over the LAN against the owner-run server (same session as owner run 1: -ContextK 128 -NumGpu 99, server OLLAMA_CONTEXT_LENGTH=131072; /api/show confirms num_gpu 99 and num_ctx 131072 in the model). Same prompt for every rate run: "Write a 150-word paragraph about how GPUs run neural networks.", think false, num_predict 256.
+- Generation, all 66 layers forced (2.3 GB spilled into shared GPU memory): 47.2 / 52.3 / 47.1 tok/s (178-220 tokens each); /api/ps 16.64 GiB, 100% in VRAM.
+- Generation, num_gpu 55 per request (the split the fit step picks on its own at 128k): 14.9 / 14.6 / 14.3 tok/s; /api/ps 17.99 GiB, 13.78 GiB in VRAM, 77%; reload 7.2 s. Forcing all layers is about 3.3x faster despite the spill.
+- Gotcha: options.num_gpu = -1 in a request does not override num_gpu 99 from the Modelfile (no reload, still 100%); those runs were discarded. A concrete layer count in the request does reload.
+- After the measurements the model was reloaded with its default num_gpu 99 (100% in VRAM), leaving the server as found.
+
+Long-prompt check (AC #2), same server and model:
+- The 8000-line prompt from the description reproduces the cut: prompt_eval_count = 65538, prompt_eval_duration 64.5 s, response "7994".
+- Measured token cost: 1000 lines = 15914 tokens, 2000 lines = 32914, so lines with 4-digit numbers cost 17 tokens each. The 8000-line prompt is therefore about 15914 + 7000 * 17 = 134914 tokens, more than the 131072-token context; the description's estimate of 127k (15.9 tokens per line) was wrong.
+- 7000 lines (prediction 15914 + 6000 * 17 = 117914): prompt_eval_count = 117914, processed in full in 116.5 s (about 1010 tok/s), response "7000" (correct). The 128k context works end to end.
+- Cause of 65538: when a prompt does not fit, the prompt is cut to the context, and llama-server (started with --context-shift --keep 4) then keeps n_keep plus one half-context block: 4 + (131072 - 4 - 65534) = 65538. It is a limit on prompt size, not a broken 128k context, and the script cannot change it (Ollama passes those flags). The server log lines containing "truncat" for that request were not visible remotely; the owner can confirm them in the server console.
+- For README.md (AC #5): state that a prompt must fit in the context with room for the answer, otherwise about half of it is dropped; use 7000 lines, not 8000, as the long-prompt check.
+
+For README.md (AC #4): the NumGpu default stays -1 per the decision rule (spill 2.3 GB), with -NumGpu 99 recommended for -ContextK 128 on a 24 GB card when the spill is acceptable: 47-52 tok/s against about 15 tok/s at the automatic 55-layer split.
+<!-- SECTION:NOTES:END -->

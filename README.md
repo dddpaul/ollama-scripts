@@ -40,14 +40,60 @@ full 256k context window, run:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-ollama.ps1 -ContextK 256
 ```
 
-This creates `qwen3.8:27b-256k` with a 262144-token context. Larger contexts
-need more VRAM for the KV cache, so Ollama may then place some layers on the
-CPU; `ollama ps` shows the actual CPU/GPU split.
+This creates `qwen3.8:27b-256k` with a 262144-token context.
+
+`-NumGpu <N>` sets how many of the model's 66 layers go to the GPU. It takes
+-1 to 999 and defaults to -1, which writes no `num_gpu` parameter and leaves
+placement to Ollama. Any other value adds `PARAMETER num_gpu <N>` to the
+Modelfile; `-NumGpu 99` puts all layers on the GPU:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-ollama.ps1 -ContextK 128 -NumGpu 99
+```
+
+Forcing all layers can ask for more VRAM than is free. On Windows the NVIDIA
+driver may then spill the excess into shared system memory ("Shared GPU memory"
+in Task Manager), and a load that does not fit at all fails; the script then
+stops with an error suggesting `-NumGpu -1` or a smaller `-ContextK`.
+
+### GPU memory at 128k
+
+At `-ContextK 128` with automatic placement, Ollama keeps only 55 of 66 layers
+on an RTX 3090 Ti (23027 MiB total) and generation drops from about 65 to
+24 tokens/s. The server log of that load breaks the demand down as follows:
+
+| Item | MiB | Log line |
+| --- | --- | --- |
+| Model weights | 15339 | `memory breakdown`, column model |
+| KV cache, 16 attention layers, q8_0, 131072 cells | 4352 | `llama_kv_cache: size = 4352.00 MiB (131072 cells, 16 layers …)` |
+| Recurrent state of the linear-attention layers | 748 | `llama_memory_recurrent: size = 748.13 MiB` |
+| Compute buffer | 720 (1048 after load) | `sched_reserve: CUDA0 compute buffer size` |
+| MTP draft context: KV 512 (1 layer, f16) + compute 196 | 708 | second `llama_kv_cache` and `sched_reserve` blocks |
+| Vision encoder (mmproj), worst case | 1161 | `estimated worst-case memory usage of mmproj is 1161.02 MiB` |
+| Free on the GPU before load | 21037 | `gpu memory … free="21.3 GiB"`, fit line |
+
+So the 128k load needs about 21.9 GiB plus Ollama's 1.9 GiB free-memory target
+against 21 GiB free. The KV cache is the largest item after the weights, so a
+smaller `-ContextK` is the main way to fit everything on the GPU.
+
+### Placement report
+
+After `ollama create` the script loads the model once (`/api/generate`, up to
+600 seconds) and prints where it landed, from `/api/ps`:
+
+```text
+GPU placement: 78% of the model in VRAM (14.1 GiB of 18.0 GiB).
+```
+
+When the share is below 100%, it adds a warning that the rest runs on the CPU
+and names `-NumGpu 99` and a smaller `-ContextK` as the fixes. `/api/ps`
+reports less than the real footprint (18 GiB at 128k against about 21.9 GiB in
+the server log), so read the percentage as the GPU share, not as a sizing figure.
 
 It uses one parallel request (`OLLAMA_NUM_PARALLEL=1`), one loaded model
 (`OLLAMA_MAX_LOADED_MODELS=1`), Flash Attention, and a q8_0 KV cache to reduce
-memory demand. Actual GPU placement depends on available VRAM; the script does
-not force all layers onto the GPU.
+memory demand. With the default `-NumGpu -1`, GPU placement depends on
+available VRAM.
 
 Behaviour to be aware of:
 

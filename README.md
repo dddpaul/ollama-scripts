@@ -63,8 +63,8 @@ server log showed about 1.9 GiB of device demand over the free VRAM. The spill
 costs less than leaving layers on the CPU: forcing all layers generated 47-52
 tokens/s, while a request forcing `num_gpu 55` in the same session generated
 about 15 tokens/s (about 24 with Ollama's own automatic placement, see below;
-the conditions differed). So at `-ContextK 128` on a 24 GB card, use `-NumGpu 99` if
-the spill into system memory is acceptable. Other ways to free VRAM, not
+the conditions differed). So at `-ContextK 128` on a 24 GB card, use
+`-NumGpu 99` if the spill into system memory is acceptable. Other ways to free VRAM, not
 handled by the script, are a text-only model without the vision encoder
 (about 1.1 GiB) and turning off the MTP draft (about 0.7 GiB, at the cost of
 generation speed).

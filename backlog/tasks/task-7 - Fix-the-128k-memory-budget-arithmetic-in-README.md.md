@@ -1,10 +1,10 @@
 ---
 id: TASK-7
 title: Fix the 128k memory budget arithmetic in README.md
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-10-11 19:06'
-updated_date: '2026-10-11 20:02'
+updated_date: '2026-10-11 20:05'
 labels: []
 dependencies: []
 priority: low
@@ -61,14 +61,20 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 README.md no longer contains "about 21.9 GiB"
-- [ ] #2 README.md states the 128k demand as 23003 MiB (about 22.5 GiB) including the vision encoder, against 21037 MiB (about 20.5 GiB) free, a deficit of about 1.9 GiB
-- [ ] #3 README.md describes the 1936 MiB free-memory target as a margin the fit step tries to keep, not memory the model allocates
-- [ ] #4 The CLAUDE.md Lint and Test commands exit 0 in the devcontainer
+- [x] #1 README.md no longer contains "about 21.9 GiB"
+- [x] #2 README.md states the 128k demand as 23003 MiB (about 22.5 GiB) including the vision encoder, against 21037 MiB (about 20.5 GiB) free, a deficit of about 1.9 GiB
+- [x] #3 README.md describes the 1936 MiB free-memory target as a margin the fit step tries to keep, not memory the model allocates
+- [x] #4 The CLAUDE.md Lint and Test commands exit 0 in the devcontainer
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 Plan: handoff checklist green (README.md exists, ACs grep/command-checkable, no deps). Rewrite the paragraph after the memory table: 21867 MiB projected by the fit step + 1136 MiB vision encoder as loaded (887.99 weights + 248.10 compute, TASK-5 log) = 23003 MiB (about 22.5 GiB) vs 21037 MiB (about 20.5 GiB) free, deficit about 1.9 GiB; 1936 MiB free-memory target described as a margin the fit step tries to keep (21867 + 1936 - 21037 = 2767 MiB 'need to reduce'). AC #1 is file-wide, so the Placement report sentence quoting 'about 21.9 GiB' becomes 'about 22.5 GiB' too.
+
+Commit: `ab6e568` - task-7: Correct the 128k memory budget in README.md
+
+Commit: `60bf692` - task-7: Mark the 2767 MiB sum as rounded and the 22.5 GiB figure as derived
+
+Done: README 'GPU memory at 128k' paragraph now states 21867 MiB projected + 1136 MiB vision encoder as loaded = 23003 MiB (about 22.5 GiB) vs 21037 MiB (about 20.5 GiB) free, deficit about 1.9 GiB; the 1936 MiB free-memory target is described as a margin, and the log's 2767 MiB is shown as 21867 + 1936 - 21037 from unrounded values. Placement report sentence: 'about 21.9 GiB in the server log' -> 'about 22.5 GiB derived from the server log'. Table row still lists the 1161 MiB worst-case mmproj estimate (unchanged, out of scope). task-reviewer: CHANGES REQUESTED (sum rounding, 'in the log' wording) then APPROVED. Lint 0, pytest 18 passed.
 <!-- SECTION:NOTES:END -->

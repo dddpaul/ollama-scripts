@@ -1,10 +1,10 @@
 ---
 id: TASK-14
 title: Document and verify OpenCode client settings for the local model
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-11 19:06'
-updated_date: '2026-10-11 20:01'
+updated_date: '2026-10-12 05:24'
 labels: []
 dependencies: []
 priority: high
@@ -64,9 +64,17 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The notes record a /v1/chat/completions request with reasoning_effort "none" and one without it: whether each response contains reasoning and its completion token count
+- [x] #1 The notes record a /v1/chat/completions request with reasoning_effort "none" and one without it: whether each response contains reasoning and its completion token count
 - [ ] #2 The notes record the installed mcp-atlassian version and a link to the doc that confirms READ_ONLY_MODE, ENABLED_TOOLS and the three tool names
 - [ ] #3 README.md has an OpenCode section with the provider snippet, the mcp-atlassian environment and version pin, and the reasoning setting, using placeholders only: a case-insensitive grep of README.md for the company's internal domain (run by the owner, who knows it) finds nothing, and no real token or user name appears
 - [ ] #4 Owner run recorded: for the same short Confluence task before and after, the number of tools sent, prompt_eval_count of the first request, time to the first tool call and to the answer
 - [ ] #5 The CLAUDE.md Lint and Test commands exit 0 in the devcontainer
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: AC #1 measured from the Mac over the LAN against the Windows server (qwen3.8:27b-128k); AC #2-#4 need the owner's OpenCode/mcp-atlassian environment.
+
+AC #1 (2026-10-12, over the LAN, Ollama 0.40.2, qwen3.8:27b-128k): /api/show reports capabilities [completion, vision, tools, thinking] and "thinking": {"values": [false, "low", "medium", "xhigh"], "default": "medium"}. POST /v1/chat/completions with "What is 17 * 23? Reply with the number only.", max_tokens 2048, stream false, two runs each: without reasoning_effort -> completion_tokens 63 and 42, the message carries reasoning (115 and 43 chars), content "391"; with "reasoning_effort": "none" -> completion_tokens 4 and 4, no reasoning in the message, content "391". So reasoning_effort "none" does turn thinking off through the OpenAI-compatible endpoint, although "none" is not among the advertised values. The first request (6.6 s) included a model reload.
+<!-- SECTION:NOTES:END -->

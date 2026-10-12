@@ -4,7 +4,7 @@ title: Set OpenCode sampling to the model's recommended values
 status: To Do
 assignee: []
 created_date: '2026-10-12 06:02'
-updated_date: '2026-10-12 18:31'
+updated_date: '2026-10-12 19:33'
 labels: []
 dependencies:
   - TASK-14
@@ -59,3 +59,12 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 - [ ] #4 Owner run: after applying the snippet, the server log "sampler params" line of an OpenCode request shows the new temperature and top_p; the line is recorded in the notes
 - [ ] #5 The CLAUDE.md Lint and Test commands exit 0 in the devcontainer
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Findings 2026-10-12 (OpenCode 1.18.35 per the source project session; server-side checks over the LAN against Ollama 0.40.2):
+- OpenCode provider "ollama" uses @ai-sdk/openai-compatible against the /v1 endpoint. Its reasoning setting is reasoningEffort (sent as reasoning_effort), settable in provider.ollama.models["qwen3.8:27b-128k"].options or, switchable at runtime (ctrl+t), in that model entry's variants block; OpenCode generates no variants for qwen ids, so they must be declared. temperature and top_p are agent settings (agent.<name>.temperature / top_p); the SDK drops topK, and unknown keys in model options are sent verbatim in the request body. Source: the bundled @ai-sdk/openai-compatible getArgs and the config schema in the installed binary (read by the source session; docs not fetched).
+- Ollama /v1/chat/completions honours temperature and top_p but ignores top_k and min_p sent as extra body fields: a request with temperature 0.6, top_p 0.95, top_k 7, min_p 0.05 logged "top_k = 20, top_p = 0.950, min_p = 0.000 ... temp = 0.600" (the Modelfile values for top_k and min_p). A request without sampling fields logged "top_k = 20, top_p = 1.000, min_p = 0.000 ... temp = 1.000": the /v1 endpoint defaults top_p and temperature to 1.0 over the Modelfile top_p 0.95, so the client must send both.
+- Consequence for AC #3: the snippet only needs temperature and top_p (agent level); top_k 20 and min_p 0 already come from the Modelfile and match the Qwen recommendation.
+<!-- SECTION:NOTES:END -->

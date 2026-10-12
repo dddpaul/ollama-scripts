@@ -43,9 +43,9 @@ def run_pwsh(command: str) -> str:
     return result.stdout
 
 
-def modelfile_lines(num_gpu: int) -> list[str]:
+def modelfile_lines(num_gpu: int, extra: str = "") -> list[str]:
     """Return the non-empty lines Get-ModelfileText emits for a 128k context."""
-    out = run_pwsh(f"Get-ModelfileText -BaseModel 'qwen3.8:27b' -ContextTokens 131072 -NumGpu {num_gpu}")
+    out = run_pwsh(f"Get-ModelfileText -BaseModel 'qwen3.8:27b' -ContextTokens 131072 -NumGpu {num_gpu} {extra}")
     return [line for line in out.splitlines() if line.strip()]
 
 
@@ -100,3 +100,45 @@ def test_num_gpu_default_is_minus_one() -> None:
         "$p.DefaultValue.Extent.Text"
     )
     assert out.strip() == "-1"
+
+
+def test_modelfile_includes_num_batch() -> None:
+    """NumBatch 256 adds a num_batch parameter after num_gpu."""
+    assert modelfile_lines(99, "-NumBatch 256") == [
+        "FROM qwen3.8:27b",
+        "PARAMETER num_ctx 131072",
+        "PARAMETER num_gpu 99",
+        "PARAMETER num_batch 256",
+    ]
+
+
+@pytest.mark.parametrize("extra", ["", "-NumBatch 512"])
+def test_modelfile_omits_num_batch_for_512(extra: str) -> None:
+    """NumBatch 512, Ollama's default, writes no num_batch line, so the default Modelfile is unchanged."""
+    assert modelfile_lines(-1, extra) == ["FROM qwen3.8:27b", "PARAMETER num_ctx 131072"]
+
+
+@pytest.mark.parametrize("value", [32, 4096])
+def test_num_batch_out_of_range_fails_validation(value: int) -> None:
+    """The script rejects -NumBatch outside 64-2048 before running its body."""
+    assert PWSH is not None
+    result = subprocess.run(
+        [PWSH, "-NoProfile", "-NonInteractive", "-File", str(SCRIPT), "-NumBatch", str(value)],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    assert result.returncode != 0
+    assert "NumBatch" in result.stderr
+    assert "ollama.exe" not in result.stderr
+
+
+def test_num_batch_default_is_512() -> None:
+    """The -NumBatch default stays 512: its speed effect could not be measured (TASK-9)."""
+    out = run_pwsh(
+        f"$p = [System.Management.Automation.Language.Parser]::ParseFile('{SCRIPT}', [ref]$null, [ref]$null)"
+        ".ParamBlock.Parameters | Where-Object { $_.Name.VariablePath.UserPath -eq 'NumBatch' }; "
+        "$p.DefaultValue.Extent.Text"
+    )
+    assert out.strip() == "512"

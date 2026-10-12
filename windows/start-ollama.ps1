@@ -7,6 +7,10 @@ param(
     [ValidateRange(-1, 999)]
     [int]$NumGpu = -1,
 
+    # 512 is Ollama's default and writes no num_batch line; 256 frees about 300 MiB at 128k.
+    [ValidateRange(64, 2048)]
+    [int]$NumBatch = 512,
+
     # 0 turns the log stream off; any other port streams the server log over TCP.
     [ValidateRange(0, 65535)]
     [ValidateScript({ if ($_ -eq 11435) { throw 'LogPort must differ from the Ollama port 11435.' }; $true })]
@@ -17,10 +21,12 @@ function Get-ModelfileText {
     param(
         [Parameter(Mandatory)] [string]$BaseModel,
         [Parameter(Mandatory)] [int]$ContextTokens,
-        [Parameter(Mandatory)] [int]$NumGpu
+        [Parameter(Mandatory)] [int]$NumGpu,
+        [int]$NumBatch = 512
     )
     $lines = @("FROM $BaseModel", "PARAMETER num_ctx $ContextTokens")
     if ($NumGpu -ne -1) { $lines += "PARAMETER num_gpu $NumGpu" }
+    if ($NumBatch -ne 512) { $lines += "PARAMETER num_batch $NumBatch" }
     return ($lines -join "`n") + "`n"
 }
 
@@ -279,7 +285,7 @@ try {
     }
     $modelfile = [System.IO.Path]::GetTempFileName()
     try {
-        Get-ModelfileText -BaseModel 'qwen3.8:27b' -ContextTokens $contextTokens -NumGpu $NumGpu |
+        Get-ModelfileText -BaseModel 'qwen3.8:27b' -ContextTokens $contextTokens -NumGpu $NumGpu -NumBatch $NumBatch |
             Set-Content -LiteralPath $modelfile -Encoding Ascii
         & $ollamaExe create $modelName -f $modelfile
         if ($LASTEXITCODE -ne 0) { throw "Failed to create $modelName." }

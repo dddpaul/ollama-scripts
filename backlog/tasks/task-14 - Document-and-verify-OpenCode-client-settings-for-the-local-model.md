@@ -4,7 +4,7 @@ title: Document and verify OpenCode client settings for the local model
 status: In Progress
 assignee: []
 created_date: '2026-10-11 19:06'
-updated_date: '2026-10-12 05:24'
+updated_date: '2026-10-12 19:16'
 labels: []
 dependencies: []
 priority: high
@@ -77,4 +77,6 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 Plan: AC #1 measured from the Mac over the LAN against the Windows server (qwen3.8:27b-128k); AC #2-#4 need the owner's OpenCode/mcp-atlassian environment.
 
 AC #1 (2026-10-12, over the LAN, Ollama 0.40.2, qwen3.8:27b-128k): /api/show reports capabilities [completion, vision, tools, thinking] and "thinking": {"values": [false, "low", "medium", "xhigh"], "default": "medium"}. POST /v1/chat/completions with "What is 17 * 23? Reply with the number only.", max_tokens 2048, stream false, two runs each: without reasoning_effort -> completion_tokens 63 and 42, the message carries reasoning (115 and 43 chars), content "391"; with "reasoning_effort": "none" -> completion_tokens 4 and 4, no reasoning in the message, content "391". So reasoning_effort "none" does turn thinking off through the OpenAI-compatible endpoint, although "none" is not among the advertised values. The first request (6.6 s) included a model reload.
+
+Reasoning-mode input from the source project session (2026-10-12): recommendation is thinking ON for Confluence research through OpenCode (medium now, measure "low" as the candidate default, never "none"), because correctness of tool results matters more than latency there (1-5 min turns are acceptable). The fabricated-page answer reported earlier happened at the server default (OpenCode config sets no reasoning or sampling options, so presumably medium; to be confirmed on the wire); the cause acted on was bundling several searches into one message, and one search or one page per message has avoided it since. Agreed plan: the source session replays three prompt shapes (A single search, B single page with a deliberately absent item, C three searches compared, also at ~48k context) for none/low/medium, interleaved, scoring fabricated page ids (ids not returned by the turn's tools) and the B absence check; this session captures the server side through the -LogPort stream (requests, prompt and generated tokens, tok/s, sampler params). Decision rule: take "low" if it matches "medium" on zero fabricated ids and the B check, else keep "medium"; sampling per Qwen thinking profile (0.6 / 0.95 / 20 / 0) for TASK-15.
 <!-- SECTION:NOTES:END -->

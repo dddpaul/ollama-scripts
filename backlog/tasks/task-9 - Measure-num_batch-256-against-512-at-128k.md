@@ -4,7 +4,7 @@ title: Measure num_batch 256 against 512 at 128k
 status: To Do
 assignee: []
 created_date: '2026-10-11 19:06'
-updated_date: '2026-10-11 20:01'
+updated_date: '2026-10-12 05:19'
 labels: []
 dependencies: []
 priority: medium
@@ -63,9 +63,35 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The llama-server command line for num_batch 256 shows -b 256 and -ub 256 (recorded from the log)
-- [ ] #2 For 512 and 256, the compute buffer size from the log, the shared GPU memory rise, prompt tokens/s on the 7000-line probe and generation tokens/s on a short prompt (three runs each) are recorded
+- [x] #1 The llama-server command line for num_batch 256 shows -b 256 and -ub 256 (recorded from the log)
+- [x] #2 For 512 and 256, the compute buffer size from the log, the shared GPU memory rise, prompt tokens/s on the 7000-line probe and generation tokens/s on a short prompt (three runs each) are recorded
 - [ ] #3 The decision is recorded: -NumBatch added with a validated range and default 512, or not added with the measured reason
 - [ ] #4 If -NumBatch is added, a devcontainer test covers its Modelfile line and README.md documents it
 - [ ] #5 The CLAUDE.md Lint and Test commands exit 0 in the devcontainer
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: measure over the LAN with per-request options.num_batch (256, then 512; each reloads the model) against qwen3.8:27b-128k (num_gpu 99 from the Modelfile), server log captured through the -LogPort 11436 stream. Per case: load, 3 short generations (same prompt, num_predict 256), 3 cold 7000-line probes (a unique first line per run breaks the prompt-cache prefix). Owner reads Task Manager Shared GPU memory while each case runs. Idle Shared GPU memory before the runs: 0.1 GB (owner, 2026-10-12).
+
+Measurements 2026-10-12 07:48-08:12 MSK over the LAN (Ollama 0.40.2, qwen3.8:27b-128k: num_ctx 131072, num_gpu 99, draft on, vision attached; KV q8_0; server log from the -LogPort stream). Per-request options.num_batch reloads the model; every request of a case carried the same value. Short prompt: "Write a 150-word paragraph about how GPUs run neural networks.", think false, num_predict 256 (prompt cache warm after the first run, 27 prompt tokens). Long probe: 7000 lines with a unique first line per run (cold cache), 117943 tokens, every answer "7000", no "truncating input prompt" line.
+
+AC #1, llama-server command lines from the log: num_batch 256 -> "-c 131072 -b 256 -ub 256 -ngl 99"; num_batch 512 -> "-b 512 -ub 512 -ngl 99". Both: offloaded 66/66 layers.
+
+| | num_batch 512 | num_batch 256 |
+| --- | --- | --- |
+| Main compute buffer (CUDA0, log) | 720.28 MiB | 616.27 MiB |
+| MTP draft compute buffer (CUDA0, two reserves) | 196.02 MiB each | 98.01 MiB each |
+| Shared GPU memory during a long prompt (idle 0.1 GB) | 2.3 GB (rise 2.2) | 1.9 GB (rise 1.8); 0.8 GB earlier, after the load |
+| Generation, short prompt, 3 runs | 44.2 / 45.0 / 44.9 tok/s | 49.8 / 50.5 / 51.5 tok/s |
+| Prompt, 7000-line probe, 3 cold runs | 700 / 648 / 609 tok/s | 761 / 728 / 690 tok/s |
+
+Run order was 256, then 512. A control run of 256 afterwards (08:08-08:12) gave generation 46.5 / 43.1 / 43.4 tok/s and one cold long prompt at 563 tok/s, slower than 512 had just been. Speeds fell steadily over the session independent of num_batch (prompt 761 -> 728 -> 690 -> 700 -> 648 -> 609 -> 563 tok/s), so these runs cannot attribute a speed difference to num_batch; the cause of the drift (GPU temperature, clocks, prompt-cache growth in RAM) was not measured. The memory effect is consistent in both the log and Task Manager: 256 frees about 300 MiB of compute buffers and lowers the spill by about 0.4 GB, but does not remove it.
+
+Other log observations: the first load after the idle unload took 45 s and logged "llama-server GPU discovery watchdog timed out"; reloads with the model files cached took 7.2-7.5 s.
+
+Advice for the sibling measurement tasks: interleave cases (A B A B) and record GPU temperature and clocks (nvidia-smi) with each run, because the drift in this session was larger than the effect being measured.
+
+Decision (AC #3, owner 2026-10-12): add -NumBatch. Implementation: [ValidateRange(64, 2048)] [int]$NumBatch = 512 in windows/start-ollama.ps1; Get-ModelfileText gets a -NumBatch parameter and writes 'PARAMETER num_batch <N>' only when N is not 512, so the default Modelfile stays byte-for-byte unchanged (existing tests keep passing). Reason: 256 frees about 300 MiB of compute buffers and lowers the 128k spill from 2.2 to 1.8 GB; on its own it does not remove the spill, but it combines with the other savings (text-only, smaller -ContextK) for the TASK-13 profile. README.md: document -NumBatch as a memory option with these measured numbers, state that its speed effect could not be measured because speed drifted by about 26% over the session independent of num_batch, and keep the default at 512. Tests (AC #4): Modelfile with -NumBatch 256 contains 'PARAMETER num_batch 256'; with 512 it has no num_batch line; -NumBatch 32 and 4096 fail parameter validation.
+<!-- SECTION:NOTES:END -->

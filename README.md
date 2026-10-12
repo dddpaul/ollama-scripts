@@ -73,6 +73,30 @@ A per-request `options.num_gpu = -1` does not override `num_gpu 99` from the
 Modelfile (the model is not reloaded); a concrete layer count in the request
 does reload it.
 
+`-NumBatch <N>` sets the batch size (`num_batch`, which Ollama 0.40.2 passes
+to llama-server as both `-b` and `-ub`). It takes 64 to 2048 and defaults to
+512, Ollama's own default, which writes no `num_batch` parameter. Any other
+value adds `PARAMETER num_batch <N>` to the Modelfile. It is a memory option:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-ollama.ps1 -ContextK 128 -NumGpu 99 -NumBatch 256
+```
+
+Measured on the RTX 3090 Ti with Ollama 0.40.2 at `-ContextK 128 -NumGpu 99`:
+
+| | num_batch 512 | num_batch 256 |
+| --- | --- | --- |
+| Main compute buffer (`sched_reserve: CUDA0 compute buffer size`) | 720 MiB | 616 MiB |
+| MTP draft compute buffer (two reserves) | 196 MiB each | 98 MiB each |
+| "Shared GPU memory" during a 117943-token prompt (idle 0.1 GB) | 2.3 GB | 1.9 GB |
+
+So 256 frees about 300 MiB of compute buffers and cuts the spill by about
+0.4 GB, but does not remove it on its own; combine it with the other savings
+above or a smaller `-ContextK`. Its effect on speed is unknown: speeds fell by
+about 26% over the measuring session regardless of `num_batch` (long-prompt
+processing from 761 to 563 tokens/s), more than any difference between the two
+values. The default therefore stays 512.
+
 ### GPU memory at 128k
 
 At `-ContextK 128` with automatic placement, Ollama keeps only 55 of 66 layers

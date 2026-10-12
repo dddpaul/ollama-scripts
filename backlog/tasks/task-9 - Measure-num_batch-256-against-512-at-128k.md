@@ -1,10 +1,10 @@
 ---
 id: TASK-9
 title: Measure num_batch 256 against 512 at 128k
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-11 19:06'
-updated_date: '2026-10-12 05:19'
+updated_date: '2026-10-12 05:22'
 labels: []
 dependencies: []
 priority: medium
@@ -65,9 +65,9 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 <!-- AC:BEGIN -->
 - [x] #1 The llama-server command line for num_batch 256 shows -b 256 and -ub 256 (recorded from the log)
 - [x] #2 For 512 and 256, the compute buffer size from the log, the shared GPU memory rise, prompt tokens/s on the 7000-line probe and generation tokens/s on a short prompt (three runs each) are recorded
-- [ ] #3 The decision is recorded: -NumBatch added with a validated range and default 512, or not added with the measured reason
-- [ ] #4 If -NumBatch is added, a devcontainer test covers its Modelfile line and README.md documents it
-- [ ] #5 The CLAUDE.md Lint and Test commands exit 0 in the devcontainer
+- [x] #3 The decision is recorded: -NumBatch added with a validated range and default 512, or not added with the measured reason
+- [x] #4 If -NumBatch is added, a devcontainer test covers its Modelfile line and README.md documents it
+- [x] #5 The CLAUDE.md Lint and Test commands exit 0 in the devcontainer
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -94,4 +94,8 @@ Other log observations: the first load after the idle unload took 45 s and logge
 Advice for the sibling measurement tasks: interleave cases (A B A B) and record GPU temperature and clocks (nvidia-smi) with each run, because the drift in this session was larger than the effect being measured.
 
 Decision (AC #3, owner 2026-10-12): add -NumBatch. Implementation: [ValidateRange(64, 2048)] [int]$NumBatch = 512 in windows/start-ollama.ps1; Get-ModelfileText gets a -NumBatch parameter and writes 'PARAMETER num_batch <N>' only when N is not 512, so the default Modelfile stays byte-for-byte unchanged (existing tests keep passing). Reason: 256 frees about 300 MiB of compute buffers and lowers the 128k spill from 2.2 to 1.8 GB; on its own it does not remove the spill, but it combines with the other savings (text-only, smaller -ContextK) for the TASK-13 profile. README.md: document -NumBatch as a memory option with these measured numbers, state that its speed effect could not be measured because speed drifted by about 26% over the session independent of num_batch, and keep the default at 512. Tests (AC #4): Modelfile with -NumBatch 256 contains 'PARAMETER num_batch 256'; with 512 it has no num_batch line; -NumBatch 32 and 4096 fail parameter validation.
+
+Commit: `ebd35ae` - task-9: Add -NumBatch to start-ollama.ps1 with tests and README measurements
+
+Implemented: -NumBatch [ValidateRange(64, 2048)] default 512 in windows/start-ollama.ps1; Get-ModelfileText writes 'PARAMETER num_batch N' only when N is not 512. Tests: 256 line, 512/default no line, 32/4096 rejected by validation before the script body, parsed default 512. README.md documents the option with the measured memory table and the unmeasurable speed effect. Lint 0, pytest 24 passed. task-reviewer: APPROVED.
 <!-- SECTION:NOTES:END -->

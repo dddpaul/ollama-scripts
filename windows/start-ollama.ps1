@@ -11,6 +11,10 @@ param(
     [ValidateRange(64, 2048)]
     [int]$NumBatch = 512,
 
+    # Idle time before Ollama unloads the model: seconds ('-1' = until the server stops) or a duration such as '30m'.
+    [ValidatePattern('^(-?\d+|-?(\d+(\.\d+)?(ns|us|ms|s|m|h))+)$')]
+    [string]$KeepAlive = '-1',
+
     # 0 turns the log stream off; any other port streams the server log over TCP.
     [ValidateRange(0, 65535)]
     [ValidateScript({ if ($_ -eq 11435) { throw 'LogPort must differ from the Ollama port 11435.' }; $true })]
@@ -28,6 +32,16 @@ function Get-ModelfileText {
     if ($NumGpu -ne -1) { $lines += "PARAMETER num_gpu $NumGpu" }
     if ($NumBatch -ne 512) { $lines += "PARAMETER num_batch $NumBatch" }
     return ($lines -join "`n") + "`n"
+}
+
+function Get-WarmLoadBody {
+    param(
+        [Parameter(Mandatory)] [string]$Model,
+        [Parameter(Mandatory)] [string]$KeepAlive
+    )
+    # The API parses a JSON string with Go's time.ParseDuration, which rejects a bare '-1', so seconds go as a number.
+    $keepAliveValue = if ($KeepAlive -match '^-?\d+$') { [long]$KeepAlive } else { $KeepAlive }
+    return @{ model = $Model; prompt = ''; stream = $false; keep_alive = $keepAliveValue } | ConvertTo-Json -Compress
 }
 
 function Get-PlacementReport {
@@ -238,6 +252,7 @@ $env:OLLAMA_NUM_PARALLEL = '1'
 $env:OLLAMA_MAX_LOADED_MODELS = '1'
 $env:OLLAMA_FLASH_ATTENTION = '1'
 $env:OLLAMA_KV_CACHE_TYPE = 'q8_0'
+$env:OLLAMA_KEEP_ALIVE = $KeepAlive
 
 $listener = $null
 $server = $null
@@ -295,7 +310,7 @@ try {
     Invoke-LogPump -State $state
 
     # Load the model once so /api/ps shows where its layers landed.
-    $loadBody = @{ model = $modelName; prompt = ''; stream = $false } | ConvertTo-Json
+    $loadBody = Get-WarmLoadBody -Model $modelName -KeepAlive $KeepAlive
     try {
         $null = Invoke-RestMethod -Method Post -Uri "$apiUrl/api/generate" -Body $loadBody `
             -ContentType 'application/json' -TimeoutSec 600

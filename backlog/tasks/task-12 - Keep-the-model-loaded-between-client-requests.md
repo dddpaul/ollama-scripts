@@ -1,10 +1,10 @@
 ---
 id: TASK-12
 title: Keep the model loaded between client requests
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-11 19:06'
-updated_date: '2026-10-11 20:01'
+updated_date: '2026-10-13 17:32'
 labels: []
 dependencies: []
 priority: medium
@@ -63,8 +63,14 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 windows/start-ollama.ps1 declares -KeepAlive with default '-1', sets OLLAMA_KEEP_ALIVE from it and passes it as keep_alive in the warm-load request (test)
+- [x] #1 windows/start-ollama.ps1 declares -KeepAlive with default '-1', sets OLLAMA_KEEP_ALIVE from it and passes it as keep_alive in the warm-load request (test)
 - [ ] #2 On the server, the same request right after the warm load and after more than five minutes idle shows no reload: the model stays in /api/ps, load_duration stays small and the log has no new "starting llama-server" line (recorded)
-- [ ] #3 README.md documents -KeepAlive
-- [ ] #4 The CLAUDE.md Lint and Test commands exit 0 in the devcontainer
+- [x] #3 README.md documents -KeepAlive
+- [x] #4 The CLAUDE.md Lint and Test commands exit 0 in the devcontainer
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Plan: add [string]$KeepAlive='-1' (validated as whole seconds or a Go duration), set OLLAMA_KEEP_ALIVE from it, build the warm-load body in a testable Get-WarmLoadBody helper. Ollama's API Duration parses a JSON string with time.ParseDuration (a bare '-1' fails: missing unit), while OLLAMA_KEEP_ALIVE also accepts integer seconds, so the helper sends integer values as a JSON number and durations as strings. AC #2 needs the owner's Windows server over the LAN (address not in the repo, not reachable from the autonomous run) and stays open.
+<!-- SECTION:NOTES:END -->

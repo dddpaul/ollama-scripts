@@ -97,6 +97,20 @@ about 26% over the measuring session regardless of `num_batch` (long-prompt
 processing from 761 to 563 tokens/s), more than any difference between the two
 values. The default therefore stays 512.
 
+`-KeepAlive <value>` sets how long Ollama keeps the model loaded after the last
+request. It defaults to `-1`, which keeps it loaded until the server stops;
+without it Ollama unloads an idle model after five minutes, and the next request
+pays the load again (5.7-7.5 s measured with the files cached) and loses the warm prompt
+cache. It takes whole seconds (`600`, or any negative number for "forever") or a
+Go duration (`30m`, `1h30m`), and sets both `OLLAMA_KEEP_ALIVE` for the server
+and `keep_alive` in the script's warm-load request (seconds go there as a JSON
+number, because the API rejects a unitless string such as `"-1"`). A client
+that sends its own `keep_alive` overrides it for that request.
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-ollama.ps1 -ContextK 128 -NumGpu 99 -KeepAlive 30m
+```
+
 ### GPU memory at 128k
 
 At `-ContextK 128` with automatic placement, Ollama keeps only 55 of 66 layers

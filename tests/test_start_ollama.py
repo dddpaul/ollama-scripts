@@ -142,3 +142,71 @@ def test_num_batch_default_is_512() -> None:
         "$p.DefaultValue.Extent.Text"
     )
     assert out.strip() == "512"
+
+
+def run_script(*args: str) -> subprocess.CompletedProcess[str]:
+    """Run the whole script with the given arguments; in the devcontainer it stops at the ollama.exe lookup."""
+    assert PWSH is not None
+    return subprocess.run(
+        [PWSH, "-NoProfile", "-NonInteractive", "-File", str(SCRIPT), *args],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+
+
+def warm_load_body(keep_alive: str) -> dict[str, object]:
+    """Return the parsed JSON body Get-WarmLoadBody builds for the given keep-alive value."""
+    out = run_pwsh(f"Get-WarmLoadBody -Model 'qwen3.8:27b-128k' -KeepAlive '{keep_alive}'")
+    body = json.loads(out)
+    assert isinstance(body, dict)
+    return body
+
+
+def test_keep_alive_default_is_minus_one() -> None:
+    """The -KeepAlive default is '-1': the model stays loaded until the server stops."""
+    out = run_pwsh(
+        f"$p = [System.Management.Automation.Language.Parser]::ParseFile('{SCRIPT}', [ref]$null, [ref]$null)"
+        ".ParamBlock.Parameters | Where-Object { $_.Name.VariablePath.UserPath -eq 'KeepAlive' }; "
+        "$p.DefaultValue.Extent.Text"
+    )
+    assert out.strip() == "'-1'"
+
+
+def test_keep_alive_sets_server_environment() -> None:
+    """The server inherits OLLAMA_KEEP_ALIVE from -KeepAlive."""
+    assert "$env:OLLAMA_KEEP_ALIVE = $KeepAlive" in SCRIPT.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(("keep_alive", "expected"), [("-1", -1), ("600", 600), ("30m", "30m"), ("1h30m", "1h30m")])
+def test_warm_load_body_carries_keep_alive(keep_alive: str, expected: object) -> None:
+    """Seconds go as a JSON number, since the API rejects a unitless string; durations go as strings."""
+    assert warm_load_body(keep_alive) == {
+        "model": "qwen3.8:27b-128k",
+        "prompt": "",
+        "stream": False,
+        "keep_alive": expected,
+    }
+
+
+def test_script_passes_keep_alive_to_warm_load() -> None:
+    """The warm-load request is built from -KeepAlive."""
+    assert "Get-WarmLoadBody -Model $modelName -KeepAlive $KeepAlive" in SCRIPT.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("value", ["forever", "5 m", "1d", ""])
+def test_keep_alive_invalid_fails_validation(value: str) -> None:
+    """The script rejects a -KeepAlive that is neither seconds nor a Go duration before running its body."""
+    result = run_script("-KeepAlive", value)
+    assert result.returncode != 0
+    assert "KeepAlive" in result.stderr
+    assert "ollama.exe" not in result.stderr
+
+
+@pytest.mark.parametrize("value", ["-1", "0", "30m", "1h30m", "-1s"])
+def test_keep_alive_valid_passes_validation(value: str) -> None:
+    """A valid -KeepAlive gets past parameter validation and fails only on the ollama.exe lookup."""
+    result = run_script("-KeepAlive", value)
+    assert result.returncode != 0
+    assert "ollama.exe" in result.stderr

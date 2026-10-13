@@ -4,7 +4,7 @@ title: Set OpenCode sampling to the model's recommended values
 status: To Do
 assignee: []
 created_date: '2026-10-12 06:02'
-updated_date: '2026-10-12 19:33'
+updated_date: '2026-10-13 06:03'
 labels: []
 dependencies:
   - TASK-14
@@ -67,4 +67,6 @@ Findings 2026-10-12 (OpenCode 1.18.35 per the source project session; server-sid
 - OpenCode provider "ollama" uses @ai-sdk/openai-compatible against the /v1 endpoint. Its reasoning setting is reasoningEffort (sent as reasoning_effort), settable in provider.ollama.models["qwen3.8:27b-128k"].options or, switchable at runtime (ctrl+t), in that model entry's variants block; OpenCode generates no variants for qwen ids, so they must be declared. temperature and top_p are agent settings (agent.<name>.temperature / top_p); the SDK drops topK, and unknown keys in model options are sent verbatim in the request body. Source: the bundled @ai-sdk/openai-compatible getArgs and the config schema in the installed binary (read by the source session; docs not fetched).
 - Ollama /v1/chat/completions honours temperature and top_p but ignores top_k and min_p sent as extra body fields: a request with temperature 0.6, top_p 0.95, top_k 7, min_p 0.05 logged "top_k = 20, top_p = 0.950, min_p = 0.000 ... temp = 0.600" (the Modelfile values for top_k and min_p). A request without sampling fields logged "top_k = 20, top_p = 1.000, min_p = 0.000 ... temp = 1.000": the /v1 endpoint defaults top_p and temperature to 1.0 over the Modelfile top_p 0.95, so the client must send both.
 - Consequence for AC #3: the snippet only needs temperature and top_p (agent level); top_k 20 and min_p 0 already come from the Modelfile and match the Qwen recommendation.
+
+Owner run (2026-10-13, OpenCode 1.18.35): OpenCode sends top_p from the agent config unconditionally but temperature only when the model's temperature capability is on (chat params: temperature = model.capabilities.temperature ? agent.temperature ?? default : undefined; topP = agent.topP ?? default, per the source session's reading of the bundle). A model defined only in the OpenCode config has that capability off, so the snippet must also set "temperature": true on the provider.ollama.models["qwen3.8:27b-128k"] entry. Without it the server logged "top_p = 0.950 ... temp = 1.000" for build requests; with it, after an OpenCode restart, every build request logged "top_k = 20, top_p = 0.950, min_p = 0.000, ... temp = 0.600" (56 requests over 8 runs). The title agent then sends its own temperature 0.5 with top_p 1.0. OpenCode reads the config only at start, so the process serving the session must be restarted after each config edit.
 <!-- SECTION:NOTES:END -->

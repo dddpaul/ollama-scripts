@@ -4,7 +4,7 @@ title: Document and verify OpenCode client settings for the local model
 status: In Progress
 assignee: []
 created_date: '2026-10-11 19:06'
-updated_date: '2026-10-12 19:33'
+updated_date: '2026-10-13 06:03'
 labels: []
 dependencies: []
 priority: high
@@ -81,4 +81,13 @@ AC #1 (2026-10-12, over the LAN, Ollama 0.40.2, qwen3.8:27b-128k): /api/show rep
 Reasoning-mode input from the source project session (2026-10-12): recommendation is thinking ON for Confluence research through OpenCode (medium now, measure "low" as the candidate default, never "none"), because correctness of tool results matters more than latency there (1-5 min turns are acceptable). The fabricated-page answer reported earlier happened at the server default (OpenCode config sets no reasoning or sampling options, so presumably medium; to be confirmed on the wire); the cause acted on was bundling several searches into one message, and one search or one page per message has avoided it since. Agreed plan: the source session replays three prompt shapes (A single search, B single page with a deliberately absent item, C three searches compared, also at ~48k context) for none/low/medium, interleaved, scoring fabricated page ids (ids not returned by the turn's tools) and the B absence check; this session captures the server side through the -LogPort stream (requests, prompt and generated tokens, tok/s, sampler params). Decision rule: take "low" if it matches "medium" on zero fabricated ids and the B check, else keep "medium"; sampling per Qwen thinking profile (0.6 / 0.95 / 20 / 0) for TASK-15.
 
 reasoning_effort levels on /v1 (2026-10-12, over the LAN): a bundle-pricing word problem with the correct answer 325, temperature 0.6, top_p 0.95, seeds 1 and 2: none -> 4 completion tokens, no reasoning, answers 670 and 100 (wrong); low -> 233 / 223 tokens, 325; medium -> 263 / 327 tokens, 325; xhigh -> 233 / 162 tokens, 325 (2.4-3.8 s each). Any thinking level solves it; "none" fails it. "low" is accepted and differs from "medium"; token counts do not scale monotonically with the level on this prompt.
+
+Reasoning-level replay (2026-10-13; OpenCode 1.18.35, Ollama 0.40.2, qwen3.8:27b-128k; server side from the -LogPort 11436 stream, client side from the source session's opencode.db). The level is set per agent in the OpenCode config (agent.build / agent.general: model, variant, temperature 0.6, top_p 0.95): OpenCode resolves a prompt's variant as prompt.variant ?? agent.variant (agent.variant only when agent.model matches), plugin-posted prompts carry no variant, and the TUI keeps its own last-selected variant. Each level switch is a config edit plus an OpenCode restart.
+Runs (fresh session per run; C-48k continues the C session), requests / generated tokens / reasoning characters:
+- A low 3 / 417 / 201; A medium 3 / 507 / 358
+- B medium 3 / 840 / 1557; B low 3 / 780 / 1100
+- C low 11 / 3015 / 4454 (one reply sent twice); C medium 11 / 1974 / 1829
+- C-48k low 11 / 2952 / 4425 (789-token reasoning step after the reply); C-48k medium 11 / 1762 / 1386
+Scores: 0 fabricated page ids in all 8 runs, B absence check passes at both levels, no compaction, tool calls exactly as asked. Single-search messages are indistinguishable between levels (within about 10% once the duplicated reply is excluded); the differences sit in the compare steps and in the two low-only anomalies (one sample per cell, temperature 0.6). Decision rule result: low matches medium on both scores but is not cheaper; the source session recommends keeping medium with an explicit variant; owner decision pending.
+Server side: all 56 run requests logged temp 0.600, top_p 0.950, top_k 20, min_p 0; no truncation; generation about 80 tok/s at 31-34k context, about 70 at 40k, 65-75 at 49k. The reasoning level is rendered at the top of the prompt (longest common prefix 3 tokens between a low and a medium prompt), so the first prompt at a new level re-reads the whole ~31k-token system and tools prefix (31,455 tokens in 26.4 s); llama-server keeps one cached prompt per level, so later switches stay warm. An idle unload (5 minutes) empties that cache: the first request after a break costs a ~5 s reload plus ~27 s of prefill (see TASK-12, -KeepAlive).
 <!-- SECTION:NOTES:END -->

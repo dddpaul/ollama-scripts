@@ -195,7 +195,7 @@ def test_script_passes_keep_alive_to_warm_load() -> None:
     assert "Get-WarmLoadBody -Model $modelName -KeepAlive $KeepAlive" in SCRIPT.read_text(encoding="utf-8")
 
 
-@pytest.mark.parametrize("value", ["forever", "5 m", "1d", ""])
+@pytest.mark.parametrize("value", ["forever", "5 m", "1d", "", "9999999999"])
 def test_keep_alive_invalid_fails_validation(value: str) -> None:
     """The script rejects a -KeepAlive that is neither seconds nor a Go duration before running its body."""
     result = run_script("-KeepAlive", value)

@@ -4,7 +4,7 @@ title: Keep the model loaded between client requests
 status: In Progress
 assignee: []
 created_date: '2026-10-11 19:06'
-updated_date: '2026-10-13 17:32'
+updated_date: '2026-10-13 17:34'
 labels: []
 dependencies: []
 priority: medium
@@ -73,4 +73,15 @@ If anything is unclear or any check fails: STOP and ask the user. Do NOT start w
 
 <!-- SECTION:NOTES:BEGIN -->
 Plan: add [string]$KeepAlive='-1' (validated as whole seconds or a Go duration), set OLLAMA_KEEP_ALIVE from it, build the warm-load body in a testable Get-WarmLoadBody helper. Ollama's API Duration parses a JSON string with time.ParseDuration (a bare '-1' fails: missing unit), while OLLAMA_KEEP_ALIVE also accepts integer seconds, so the helper sends integer values as a JSON number and durations as strings. AC #2 needs the owner's Windows server over the LAN (address not in the repo, not reachable from the autonomous run) and stays open.
+
+Commit: `a7aea6e` - task-12: Add -KeepAlive to start-ollama.ps1 so the model stays loaded between requests
+
+AC #2 procedure for the owner (Windows server, started with -ContextK 128 -NumGpu 99 -LogPort 11436; default -KeepAlive -1). From a LAN client:
+1. curl -sN http://<windows-ip>:11436 > ka.log &   (capture the server log)
+2. curl -s http://<windows-ip>:11435/api/ps   -> qwen3.8:27b-128k listed, expires_at far in the future
+3. right after the warm load: curl -s http://<windows-ip>:11435/api/generate -d "{\"model\":\"qwen3.8:27b-128k\",\"prompt\":\"Say hi.\",\"think\":false,\"stream\":false,\"options\":{\"num_predict\":16}}" | jq "{load_duration,prompt_eval_count,eval_count}"   (run 3 times)
+4. wait 6+ minutes without requests, repeat step 2 and step 3 (3 times)
+5. grep -c "starting llama-server" ka.log  -> no new line after the warm load
+Pass: model still in /api/ps after the idle, load_duration stays small (milliseconds, not seconds) in every run, no new starting llama-server line. Record the Ollama version, the llama-server command line and the numbers here, then check AC #2.
+Review fixes: seconds limited to nine digits (an Int64 overflow would otherwise fail after the server started); README notes that 0 unloads the model after each request. task-reviewer (round 1): CHANGES REQUESTED, blocking only on the missing AC #2 record (R-CORE-6) — the branch stays unmerged until the owner records AC #2.
 <!-- SECTION:NOTES:END -->

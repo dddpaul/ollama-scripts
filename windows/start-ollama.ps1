@@ -12,7 +12,7 @@ param(
     [int]$NumBatch = 512,
 
     # Idle time before Ollama unloads the model: seconds ('-1' = until the server stops) or a duration such as '30m'.
-    [ValidatePattern('^(-?\d+|-?(\d+(\.\d+)?(ns|us|ms|s|m|h))+)$')]
+    [ValidatePattern('^(-?\d{1,9}|-?(\d+(\.\d+)?(ns|us|ms|s|m|h))+)$')]
     [string]$KeepAlive = '-1',
 
     # 0 turns the log stream off; any other port streams the server log over TCP.

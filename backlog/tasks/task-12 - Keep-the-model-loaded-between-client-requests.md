@@ -84,4 +84,6 @@ AC #2 procedure for the owner (Windows server, started with -ContextK 128 -NumGp
 5. grep -c "starting llama-server" ka.log  -> no new line after the warm load
 Pass: model still in /api/ps after the idle, load_duration stays small (milliseconds, not seconds) in every run, no new starting llama-server line. Record the Ollama version, the llama-server command line and the numbers here, then check AC #2.
 Review fixes: seconds limited to nine digits (an Int64 overflow would otherwise fail after the server started); README notes that 0 unloads the model after each request. task-reviewer (round 1): CHANGES REQUESTED, blocking only on the missing AC #2 record (R-CORE-6) — the branch stays unmerged until the owner records AC #2.
+
+Commit: `d9a43e4` - task-12: Limit -KeepAlive seconds to nine digits and document 0
 <!-- SECTION:NOTES:END -->
